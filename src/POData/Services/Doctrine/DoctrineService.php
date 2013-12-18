@@ -2,7 +2,6 @@
 
 namespace POData\Services\Doctrine;
 
-use Doctrine\Common\Annotations\Reader;
 use POData\Configuration\EntitySetRights;
 use POData\Configuration\ProtocolVersion;
 use POData\Configuration\ServiceConfiguration;
@@ -14,7 +13,7 @@ class DoctrineService extends BaseService
     private $_doctrineQueryProvider;
     private $_doctrine;
 
-	public function __construct($doctrine, Reader $annotationReader, DoctrineMetadataProvider $metadataProvider) {
+	public function __construct($doctrine, DoctrineMetadataProvider $metadataProvider) {
 		$this->_doctrine = $doctrine;
 		$this->_doctrineMetadata = $metadataProvider;
 	}
