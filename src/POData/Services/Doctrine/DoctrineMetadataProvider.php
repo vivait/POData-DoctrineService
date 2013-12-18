@@ -4,7 +4,7 @@ namespace POData\Services\Doctrine;
 
 use Doctrine\Bundle\DoctrineBundle\Registry;
 use Doctrine\Common\Annotations\Annotation\Target;
-use Doctrine\Common\Annotations\AnnotationReader;
+use Doctrine\Common\Annotations\Reader;
 use Doctrine\Common\Annotations\DocParser;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\Mapping\ClassMetadata;
@@ -24,6 +24,8 @@ class DoctrineMetadataProvider extends SimpleMetadataProvider {
 	protected $entities = array();
 	private $doctrine;
 
+	protected $annotationReader;
+
 
 	/**
 	 *
@@ -31,17 +33,19 @@ class DoctrineMetadataProvider extends SimpleMetadataProvider {
 	 * @param string $namespaceName namespace for the datasource.
 	 *
 	 */
-	public function __construct($containerName, $namespaceName, Registry $doctrine)
+	public function __construct($containerName, $namespaceName, Registry $doctrine, Reader $annotationReader)
 	{
 		parent::__construct($containerName, $namespaceName);
 
 		$this->doctrine      = $doctrine;
+		$this->annotationReader = $annotationReader;
 	}
 
 	public function addEntity($entity, $namespace) {
 		// Get the meta data
 		$cmf = $this->doctrine->getManager()->getMetadataFactory();
 		$meta = $cmf->getMetadataFor($entity);
+
 		$name = $this->removeNamespace($meta->getName());
 
 		// Is it a polymorphic entity?
@@ -145,25 +149,27 @@ class DoctrineMetadataProvider extends SimpleMetadataProvider {
 	}
 
 	protected function addEntityProperties($entity, ResourceType $type, ClassMetadata $meta) {
-		$docParser = new DocParser();
 
 		// Add the fields
-		foreach ($meta->fieldMappings as $fieldMapping) {
-			$typeCode = $this->getResourceTypeCode($fieldMapping['type']);
+		foreach ($meta->fieldMappings as $name => $fieldMapping) {
+			$annotations = $this->annotationReader->getPropertyAnnotations($meta->reflFields[$name]);
+			$fieldType = $fieldMapping['type'];
 
-			$method = 'get'. Container::camelize($fieldMapping['fieldName']);
-			$property = new \ReflectionMethod($entity, $method);
+			foreach ($annotations as $annotation) {
+				if ($annotation instanceOf Metadata\Column) {
+					// Change the field type?
+					if ($annotation->type) {
+						$fieldType = $annotation->type;
+					}
 
-			$class = $property->getDeclaringClass();
-			$context = 'property ' . $class->getName() . "::\$" . $property->getName();
-			$docParser->setTarget(Target::TARGET_PROPERTY);
-			$docParser->setIgnoreNotImportedAnnotations(true);
+					// Change the field type?
+					if (!$annotation->visible) {
+						continue;
+					}
+				}
+			}
 
-			$classAnnotations = $docParser->parse($property->getDocComment(), $context);
-
-
-			var_dump($classAnnotations);
-
+			$typeCode = $this->getResourceTypeCode($fieldType);
 			if (!empty($fieldMapping['id'])) {
 				$this->addKeyProperty($type, $fieldMapping['fieldName'], $typeCode);
 			}
@@ -197,13 +203,16 @@ class DoctrineMetadataProvider extends SimpleMetadataProvider {
         $metadata->addResourceReferenceProperty($orderDetailsEntityType, 'Order', $ordersResourceSet);
         $metadata->addResourceSetReferenceProperty($orderEntityType, 'Order_Details', $orderDetialsResourceSet);
 			 * */
-
 			switch ($association['type']) {
 				case ClassMetadataInfo::ONE_TO_ONE:
 					$this->addResourceReferenceProperty($type, $association['fieldName'], $target_set);
 				break;
 				case ClassMetadataInfo::ONE_TO_MANY:
-					$this->addResourceReferenceProperty($target_type, $association['mappedBy'], $set);
+					//$this->addResourceReferenceProperty($target_type, $association['mappedBy'], $set);
+					$this->addResourceSetReferenceProperty($type, $association['fieldName'], $target_set);
+					break;
+				case ClassMetadataInfo::MANY_TO_MANY:
+					//$this->addResourceSetReferenceProperty($target_type, $association['inversedBy'], $set);
 					$this->addResourceSetReferenceProperty($type, $association['fieldName'], $target_set);
 				break;
 			}
