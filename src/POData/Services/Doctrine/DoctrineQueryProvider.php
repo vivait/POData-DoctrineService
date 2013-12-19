@@ -120,8 +120,7 @@ class DoctrineQueryProvider implements IQueryProvider
 		$key             = key($keys);
 
 		try {
-			// TODO: Replace me with a prefixer
-			$queryBuilder->from('VivaApolloBundle:'. $resourceSetName, 'r');
+			$queryBuilder->from($resourceSet->getResourceType()->getNamespace() .':'. $resourceSetName, 'r');
 
 			if ($filterInfo != null) {
 				$queryBuilder->where($filterInfo);
